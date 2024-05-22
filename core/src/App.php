@@ -4,6 +4,11 @@ namespace MMX\Super\Shop;
 
 use DI\Bridge\Slim\Bridge;
 use DI\Container;
+use Illuminate\Database\Eloquent\Builder;
+use MMX\Database\Models\Resource;
+use MMX\Super\Shop\Models\Category;
+use MMX\Super\Shop\Models\Product;
+use MODX\Revolution\modResource;
 use MODX\Revolution\modSystemEvent;
 use MODX\Revolution\modX;
 use Psr\Container\ContainerInterface;
@@ -13,9 +18,11 @@ class App
 {
     public const NAME = 'mmxSuperShop';
     public const NAMESPACE = 'mmx-super-shop';
+    public \MMX\Fenom\App $fenom;
 
     protected modX $modx;
     protected static ContainerInterface $container;
+    protected string $shopRoot = '/shop/';
 
     public function __construct(modX $modx)
     {
@@ -24,23 +31,16 @@ class App
         if (!$this->modx->services->has('mmxDatabase')) {
             $this->modx->log(modX::LOG_LEVEL_ERROR, 'Please install "mmx/database" package to use mmxSuperShop');
         }
+        if (!$this->modx->services->has('mmxFenom')) {
+            $this->modx->log(modX::LOG_LEVEL_ERROR, 'Please install "mmx/fenom" package to use mmxSuperShop');
+        } else {
+            $this->fenom = $this->modx->services->get('mmxFenom');
+        }
 
         $container = new Container();
         $container->set(modX::class, $this->modx);
         $container->set('modx', $this->modx);
         static::$container = $container;
-
-        $config = $modx->getConnection()->config;
-        putenv('DB_DRIVER=' . $config['dbtype']);
-        putenv('DB_HOST=' . $config['host']);
-        putenv('DB_PORT=3306');
-        putenv('DB_PREFIX=' . $config['table_prefix']);
-        putenv('DB_DATABASE=' . $config['dbname']);
-        putenv('DB_USERNAME=' . $config['username']);
-        putenv('DB_PASSWORD=' . $config['password']);
-        putenv('DB_CHARSET=' . $config['charset']);
-        putenv('DB_COLLATION=' . $config['charset'] . '_general_ci');
-        putenv('DB_FOREIGN_KEYS=1');
     }
 
     public static function getContainer(): ContainerInterface
@@ -57,12 +57,77 @@ class App
         if ($event->name === 'OnManagerPageInit' && $event->params['namespace'] === $this::NAMESPACE) {
             class_alias(Controllers\Modx\Home::class, '\MODX\Revolution\Controllers\Home');
         }
-        if ($event->name === 'OnHandleRequest' && str_starts_with($_SERVER['REQUEST_URI'], '/' . $this::NAMESPACE)) {
-            $this->run();
-            exit();
+        if ($event->name === 'OnHandleRequest') {
+            if (str_starts_with($_SERVER['REQUEST_URI'], '/' . $this::NAMESPACE)) {
+                $this->run();
+                exit();
+            }
+
+            if (str_starts_with($_SERVER['REQUEST_URI'], $this->shopRoot)) {
+                $uri = substr($_SERVER['REQUEST_URI'], strlen($this->shopRoot));
+                /** @var Resource $resource */
+                /** @var Category $category */
+                if ($category = Category::query()->where(['alias' => $uri, 'active' => true])->first()) {
+                    $resource = Resource::query()
+                        ->whereHas('Parent', function (Builder $c) {
+                            $c->where('alias', trim($this->shopRoot, '/'));
+                        })
+                        ->where('alias', 'category')
+                        ->first();
+
+                    if ($resource) {
+                        $this->modx->resource = new modResource($this->modx);
+                        $this->modx->resource->fromArray($resource->toArray());
+                        $this->modx->resource->id = $category->id;
+                        $this->modx->resource->pagetitle = $category->title;
+                        $this->modx->resource->template = $resource->template;
+                        $this->modx->resource->alias = $category->alias;
+                        $this->modx->resource->isfolder = true;
+                        $this->modx->resource->uri = $this->shopRoot . $category->alias;
+                        $this->modx->resource->content = '';
+
+                        if ($this->modx->getResponse()) {
+                            $this->modx->response->outputContent();
+                        }
+                    }
+                } elseif ($product = Product::query()->where(['uri' => $uri, 'active' => true])->first()) {
+                    /** @var Product $product */
+                    $resource = Resource::query()
+                        ->whereHas('Parent', function (Builder $c) {
+                            $c->where('alias', trim($this->shopRoot, '/'));
+                        })
+                        ->where('alias', 'product')
+                        ->first();
+                    if ($resource) {
+                        $this->modx->resource = new modResource($this->modx);
+                        $this->modx->resource->fromArray($resource->toArray());
+                        $this->modx->resource->id = $product->id;
+                        $this->modx->resource->pagetitle = $product->title;
+                        $this->modx->resource->template = $resource->template;
+                        $this->modx->resource->alias = $product->alias;
+                        $this->modx->resource->isfolder = true;
+                        $this->modx->resource->uri = $this->shopRoot . $product->uri;
+                        $this->modx->resource->content = '';
+
+                        if ($this->modx->getResponse()) {
+                            $this->modx->response->outputContent();
+                        }
+                    }
+                }
+            }
+        }
+        if ($event->name === 'OnWebPagePrerender') {
+            $tpl = $this->compileTemplate($this->modx->resource->_output);
+            $this->modx->resource->_output = $tpl->fetch([]);
+
+            if ($parser = $this->modx->getParser()) {
+                $parser->processElementTags('', $this->modx->resource->_output, false, false, '[[', ']]', [], 10);
+            }
+
         }
     }
 
+    /*
     public function handleSnippet(array $properties): string
     {
         $keys = array_map('strtolower', array_keys($properties));
@@ -77,7 +142,7 @@ class App
         $this->modx->regClientHTMLBlock('<script>' . self::NAME . '=' . json_encode($data) . '</script>');
 
         return '<div id="mmx-super-shop-root"></div>';
-    }
+    }*/
 
     public function run(): void
     {
@@ -211,5 +276,18 @@ class App
         }, array_keys($entries));
 
         return array_combine($keys, array_values($entries));
+    }
+
+    protected function compileTemplate(string $content): \Fenom\Template
+    {
+        $name = sha1($content);
+        try {
+            return $this->fenom->getRawTemplate()->source($name, $content, true);
+        } catch (\Throwable $e) {
+            $this->modx->log(modX::LOG_LEVEL_ERROR, $e->getMessage());
+            $this->modx->log(modX::LOG_LEVEL_INFO, $content);
+
+            return $this->fenom->getRawTemplate()->source($name, '', false);
+        }
     }
 }

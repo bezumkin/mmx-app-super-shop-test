@@ -35,10 +35,5 @@ if (!isset($modx)) {
 }
 
 if (!$modx->services->has(MMX\Super\Shop\App::NAME)) {
-    $modx->services->add(
-        MMX\Super\Shop\App::NAME,
-        $modx->services->factory(function () use ($modx) {
-            return new MMX\Super\Shop\App($modx);
-        })
-    );
+    $modx->services->add(MMX\Super\Shop\App::NAME, new MMX\Super\Shop\App($modx));
 }

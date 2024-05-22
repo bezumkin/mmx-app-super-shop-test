@@ -2,6 +2,7 @@
 
 namespace MMX\Super\Shop\Console\Command;
 
+use MMX\Database\Models\Chunk;
 use MMX\Super\Shop\App;
 use MMX\Database\Models\Category;
 use MMX\Database\Models\Menu;
@@ -99,6 +100,7 @@ class Install extends Command
         $pluginEvents = [
             'OnHandleRequest',
             'OnManagerPageInit',
+            'OnWebPagePrerender',
         ];
         foreach ($pluginEvents as $name) {
             if (!$plugin->Events()->where('event', $name)->count()) {
@@ -108,24 +110,65 @@ class Install extends Command
         }
 
         $snippets = [
-            'mmxSuperShop' => [
-                'file' => 'snippet.php',
+            'getCategories' => [
+                'file' => 'get-categories.php',
                 'properties' => [
-                    'noCSS' => [
-                        'name' => 'noCSS',
-                        'desc' => 'mmx-super-shop.snippets.nocss',
-                        'type' => 'combo-boolean',
-                        'value' => false,
+                    'tpl' => [
+                        'name' => 'tpl',
+                        'desc' => 'mmx-super-shop.snippets.tpl',
+                        'type' => 'textfield',
+                        'value' => 'tplCategories',
                         'lexicon' => App::NAMESPACE . ':default',
                     ],
                 ],
             ],
+            'getProducts' => [
+                'file' => 'get-products.php',
+                'properties' => [
+                    'tpl' => [
+                        'name' => 'tpl',
+                        'desc' => 'mmx-super-shop.snippets.tpl',
+                        'type' => 'textfield',
+                        'value' => 'tplProducts',
+                        'lexicon' => App::NAMESPACE . ':default',
+                    ],
+                    'category' => [
+                        'name' => 'category',
+                        'desc' => 'mmx-super-shop.snippets.category',
+                        'type' => 'textfield',
+                        'value' => '',
+                        'lexicon' => App::NAMESPACE . ':default',
+                    ],
+                ],
+            ],
+            'getProduct' => [
+                'file' => 'get-product.php',
+                'properties' => [
+                    'id' => [
+                        'name' => 'id',
+                        'desc' => 'mmx-super-shop.snippets.id',
+                        'type' => 'textfield',
+                        'value' => 'tplProduct',
+                        'lexicon' => App::NAMESPACE . ':default',
+                    ],
+                    'tpl' => [
+                        'name' => 'tpl',
+                        'desc' => 'mmx-super-shop.snippets.tpl',
+                        'type' => 'textfield',
+                        'value' => 'tplProduct',
+                        'lexicon' => App::NAMESPACE . ':default',
+                    ],
+                ],
+            ]
         ];
         foreach ($snippets as $name => $data) {
             if (!$snippet = Snippet::query()->where('name', $name)->first()) {
                 $snippet = new Snippet();
                 $snippet->name = $name;
             }
+            $snippet->source = 1;
+            $snippet->static = true;
+            $snippet->static_file = 'core/components/' . App::NAMESPACE . '/elements/' . $data['file'];
             $snippet->category = $category->id;
             $snippet->snippet = preg_replace(
                 '#^<\?php#',
@@ -139,6 +182,33 @@ class Install extends Command
             $snippet->save();
             $output->writeln('<info>' . $action . ' snippet "' . $snippet->name . '"</info>');
         }
+
+        $chunks = [
+            'tplCategories' => [
+                'file' => 'categories.tpl',
+            ],
+            'tplProducts' => [
+                'file' => 'products.tpl',
+            ],
+            'tplProduct' => [
+                'file' => 'product.tpl',
+            ],
+        ];
+        foreach ($chunks as $name => $data) {
+            if (!$chunk = Chunk::query()->where('name', $name)->first()) {
+                $chunk = new Chunk();
+                $chunk->name = $name;
+            }
+            $chunk->source = 1;
+            $chunk->static = true;
+            $chunk->static_file = 'core/components/' . App::NAMESPACE . '/elements/' . $data['file'];
+            $chunk->category = $category->id;
+            $chunk->snippet = file_get_contents($corePath . '/elements/' . $data['file']);
+            $action = !$chunk->exists ? 'Created' : 'Updated';
+            $chunk->save();
+            $output->writeln('<info>' . $action . ' chunk "' . $chunk->name . '"</info>');
+        }
+
 
         $output->writeln('<info>Run Phinx migrations</info>');
         $phinx = new TextWrapper(new PhinxApplication(), ['configuration' => $srcPath . '/core/phinx.php']);

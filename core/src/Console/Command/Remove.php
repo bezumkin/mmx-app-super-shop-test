@@ -2,6 +2,7 @@
 
 namespace MMX\Super\Shop\Console\Command;
 
+use MMX\Database\Models\Category;
 use MMX\Database\Models\Menu;
 use MMX\Database\Models\Namespaces;
 use MMX\Database\Models\Plugin;
@@ -62,6 +63,22 @@ class Remove extends Command
             }
             $plugin->delete();
             $output->writeln('<info>Removed plugin "' . $plugin->name . '"</info>');
+        }
+
+        if ($category = Category::query()->where('category', App::NAME)->first()) {
+            /** @var Category $category */
+            $category->delete();
+            $output->writeln('<info>Removed category "' . $category->category . '"</info>');
+
+            foreach ($category->Snippets() as $snippet) {
+                $snippet->delete();
+                $output->writeln('<info>Removed snippet "' . $snippet->name . '"</info>');
+            }
+
+            foreach ($category->Chunks() as $chunk) {
+                $chunk->delete();
+                $output->writeln('<info>Removed snippet "' . $chunk->name . '"</info>');
+            }
         }
 
         $output->writeln('<info>Rollback Phinx migrations</info>');

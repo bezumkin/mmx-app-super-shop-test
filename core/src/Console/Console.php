@@ -38,6 +38,18 @@ class Console extends Application
                 exit;
             }
         }
+        if (!$this->modx->services->has('mmxFenom')) {
+            try {
+                new \MMX\Fenom\App($this->modx);
+                $install = new \MMX\Fenom\Console\Command\Install($this->modx);
+                $output->writeln('<info>Trying to install mmx/fenom...</info>');
+                $install->run($input, $output);
+            } catch (\Throwable $e) {
+                $output->writeln('<error>Could not load mmxFenom service</error>');
+                $output->writeln('<info>Please run "composer exec mmx-fenom install"</info>');
+                exit;
+            }
+        }
 
         return parent::doRun($input, $output);
     }
