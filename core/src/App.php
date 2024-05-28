@@ -109,10 +109,6 @@ class App
                         $this->modx->resource->uri = $this->shopRoot . $product->uri;
                         $this->modx->resource->content = '';
 
-                        $this->modx->resource->_content =
-                        $this->modx->resource->_output = $resource->Template?->content;
-
-
                         if ($this->modx->getResponse()) {
                             $this->modx->response->outputContent();
                         }
