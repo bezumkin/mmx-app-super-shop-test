@@ -20,7 +20,7 @@ class App
     public const NAMESPACE = 'mmx-super-shop';
     public \MMX\Fenom\App $fenom;
 
-    protected modX $modx;
+    public modX $modx;
     protected static ContainerInterface $container;
     protected string $shopRoot = '/shop/';
 
@@ -109,6 +109,10 @@ class App
                         $this->modx->resource->uri = $this->shopRoot . $product->uri;
                         $this->modx->resource->content = '';
 
+                        $this->modx->resource->_content =
+                        $this->modx->resource->_output = $resource->Template?->content;
+
+
                         if ($this->modx->getResponse()) {
                             $this->modx->response->outputContent();
                         }
@@ -124,25 +128,27 @@ class App
                 $parser->processElementTags('', $this->modx->resource->_output, false, false, '[[', ']]', [], 10);
             }
 
+            $js = $this->modx->getRegisteredClientStartupScripts();
+            if ($js && strpos($this->modx->resource->_output, '</head>')) {
+                $this->modx->resource->_output = preg_replace(
+                    '/(<\/head>)/i',
+                    $js . "\n\\1",
+                    $this->modx->resource->_output,
+                    1
+                );
+            }
+
+            $js = $this->modx->getRegisteredClientScripts();
+            if ($js && strpos($this->modx->resource->_output, '</body>')) {
+                $this->modx->resource->_output = preg_replace(
+                    '/(<\/body>)/i',
+                    $js . "\n\\1",
+                    $this->modx->resource->_output,
+                    1
+                );
+            }
         }
     }
-
-    /*
-    public function handleSnippet(array $properties): string
-    {
-        $keys = array_map('strtolower', array_keys($properties));
-        $properties = array_combine($keys, array_values($properties));
-
-        $this::registerAssets($this->modx, !empty($properties['nocss']));
-        $locale = $this->modx->context->getOption('cultureKey') ?: 'en';
-        $data = [
-            'locale' => $locale,
-            'lexicon' => $this->getLexicon($locale, ['errors']),
-        ];
-        $this->modx->regClientHTMLBlock('<script>' . self::NAME . '=' . json_encode($data) . '</script>');
-
-        return '<div id="mmx-super-shop-root"></div>';
-    }*/
 
     public function run(): void
     {

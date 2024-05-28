@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@vesp/mmx-frontend": "^1.7.0",
+    "glightbox": "^3.3.0",
     "vue": "^3.4.21"
   },
   "devDependencies": {
