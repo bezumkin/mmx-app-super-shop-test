@@ -28,6 +28,7 @@ if (!defined('MODX_CORE_PATH')) {
     require MODX_CORE_PATH . '/vendor/autoload.php';
 }
 
+
 /** @var MODX\Revolution\modX $modx */
 if (!isset($modx)) {
     $modx = new MODX\Revolution\modX();
