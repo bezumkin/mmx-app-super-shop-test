@@ -29,6 +29,8 @@ class File extends Model
 
     protected static function boot(): void
     {
+        parent::boot();
+
         static::creating(static function (self $model) {
             $model->uuid = Uuid::uuid4();
         });

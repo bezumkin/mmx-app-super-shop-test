@@ -33,6 +33,8 @@ class Product extends Model
 
     protected static function boot(): void
     {
+        parent::boot();
+
         static::saving(static function (self $model) {
             $model->uri = $model->category->alias . '/' . $model->alias;
         });
